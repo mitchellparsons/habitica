@@ -7,6 +7,42 @@ import * as Tasks from '../task';
 
 import schema from './schema';
 
+import * as AWS from 'aws-sdk';
+import nconf from 'nconf';
+
+const iot = new AWS.Iot({
+  region: nconf.get("AWS_REGION")
+});
+const iotdata = new AWS.IotData({
+  endpoint: nconf.get("AWS_IOT_ENDPOINT"),
+  region: nconf.get("AWS_REGION")
+});
+
+function createUserThing(user) {
+  console.log(`Creating thing: habitica_user_${user._id}`)
+  let params = {
+    thingName: `habitica_user_${user._id}`,
+    thingTypeName: 'habitica_user'
+  };
+  iot.createThing(params, function(err, data) {
+    if (err) console.log(err, err.stack);
+    else     console.log("User Thing Create Successful!", data);
+  });
+}
+
+function updateUserThingShadow(user) {
+  console.log(`updating shadow for thing: habitica_user_${user._id}`)
+  let params = {
+    payload: JSON.stringify({state: {desired: user.stats}}),
+    thingName: `habitica_user_${user._id}`
+  };
+  iotdata.updateThingShadow(params, function(err, data) {
+    if (err) console.log(err, err.stack);
+    else     console.log("User Thing Update Successful!", data);
+  });
+}
+
+
 schema.plugin(baseModel, {
   // noSet is not used as updating uses a whitelist and creating only accepts specific params (password, email, username, ...)
   noSet: [],
@@ -158,6 +194,8 @@ function _setUpNewUser (user) {
     }
   }
 
+  createUserThing(user);
+
   pinBaseItems(user);
   return _populateDefaultTasks(user, taskTypes);
 }
@@ -198,6 +236,7 @@ schema.pre('validate', function preValidateUser (next) {
 });
 
 schema.pre('save', true, function preSaveUser (next, done) {
+  updateUserThingShadow(this)
   next();
 
   // VERY IMPORTANT NOTE: when only some fields from an user document are selected

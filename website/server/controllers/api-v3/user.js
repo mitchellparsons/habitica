@@ -20,9 +20,17 @@ import {
 } from '../../libs/email';
 import nconf from 'nconf';
 import get from 'lodash/get';
+import * as AWS from 'aws-sdk';
 
 const TECH_ASSISTANCE_EMAIL = nconf.get('EMAILS:TECH_ASSISTANCE_EMAIL');
 const DELETE_CONFIRMATION = 'DELETE';
+
+
+const iot = new AWS.Iot({
+  region: nconf.get('AWS_REGION')
+});
+
+
 
 /**
  * @apiDefine UserNotFound
@@ -30,6 +38,159 @@ const DELETE_CONFIRMATION = 'DELETE';
  */
 
 let api = {};
+
+
+api.getUserAWSIoTCertificate = {
+  method: 'GET',
+  url: '/user/aws-iot-certificate',
+  middlewares: [authWithHeaders()],
+  async handler (req, res) {
+    let user = res.locals.user;
+
+    function deleteExistingCertAndPolicy(cb) {
+      let thingName = `habitica_user_${user._id}`;
+      let policyName = `habitica_user_${user._id}_policy`;
+
+      iot.listThingPrincipals({thingName}, function(err, data) {
+        if (err) {
+          console.log(err, err.stack);
+          cb();
+        }
+        else {
+          if(data.principals.length === 0) {
+            cb();
+            return;
+          }
+          let principal = data.principals[0];
+          iot.updateCertificate({certificateId: principal.split('/')[1], newStatus:"INACTIVE"}, function(err, data) {
+            if (err) {
+              console.log(err, err.stack);
+            }
+            else {
+              iot.detachThingPrincipal({principal, thingName}, function(err, data) {
+                if (err) {
+                  console.log(err, err.stack);
+                }
+                else {
+                  iot.detachPrincipalPolicy({policyName, principal}, function(err, data) {
+                    if (err) {
+                      console.log(err, err.stack);
+                    }
+                    else {
+                      iot.deleteCertificate({certificateId: principal.split('/')[1]}, function(err, data) {
+                        if (err) {
+                          console.log(err, err.stack);
+                          cb();
+                        }
+                        else  {
+                          iot.deletePolicy({policyName}, function(err, data) {
+                            cb()
+                          });
+                        }
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+
+    function createKeysAndCert(cb) {
+      iot.createKeysAndCertificate({setAsActive: true}, function(err, data) {
+        if(!err) cb(data);
+        else {
+          console.log("Error createKeysAndCert", err);
+          res.send(500);
+        }
+      });
+    }
+
+    function createPolicy(certificateARN, cb) {
+      let policyDocument = `{
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Effect": "Allow",
+            "Action": [
+              "iot:Subscribe"
+            ],
+            "Resource": [
+              "arn:aws:iot:us-west-2:${nconf.get('AWS_ACCOUNT_ID')}:topicfilter/habitica_user/${user._id}/*",
+              "arn:aws:iot:us-west-2:${nconf.get('AWS_ACCOUNT_ID')}:topicfilter/$aws/things/habitica_user_${user._id}/*"
+            ]
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "iot:Connect",
+              "iot:Receive"
+            ],
+            "Resource": [
+              "*"
+            ]
+          }
+        ]
+      }`
+      let params = {
+        policyDocument: policyDocument,
+        policyName: `habitica_user_${user._id}_policy`
+      };
+      iot.createPolicy(params, function(err, data) {
+        if (!err) {
+          let params = {
+            policyName: `habitica_user_${user._id}_policy`,
+            principal: certificateARN
+          };
+          iot.attachPrincipalPolicy(params, function(err, data) {
+            if (!err) cb();
+            else {
+              console.log("Error attachPrincipalPolicy ", err);
+              res.send(500);
+            }
+          });
+        }
+        else {
+          console.log("Error createPolicy", err);
+          res.send(500);
+        }
+      });
+    }
+
+    function AttachThing(certificateARN, cb) {
+      let params = {
+        principal: certificateARN,
+        thingName: `habitica_user_${user._id}`
+      };
+      iot.attachThingPrincipal(params, function(err, data) {
+        if (!err) cb();
+        else {
+          console.log("Error attachThingPrincipal", err);
+          res.send(500);
+        }
+      });
+    }
+
+    deleteExistingCertAndPolicy(()=> {
+      createKeysAndCert((keysAndCert) => {
+        const certificateARN = keysAndCert.certificateArn;
+        createPolicy(certificateARN, () =>{
+          AttachThing(certificateARN,() => {
+            console.log("I am successful at creating cert!", certificateARN);
+            res.respond(200, {
+              certificatePem: keysAndCert.certificatePem,
+              publicKey: keysAndCert.keyPair.PublicKey,
+              privateKey: keysAndCert.keyPair.PrivateKey
+            });
+          });
+        });
+      });
+    });
+
+  },
+};
+
 
 /**
  * @api {get} /api/v3/user Get the authenticated user's profile

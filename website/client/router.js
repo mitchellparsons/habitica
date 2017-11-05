@@ -36,6 +36,7 @@ const ProfilePage = () => import(/* webpackChunkName: "user" */'./components/use
 // Settings
 const Settings = () => import(/* webpackChunkName: "settings" */'./components/settings/index');
 const API = () => import(/* webpackChunkName: "settings" */'./components/settings/api');
+const AWSIoT = () => import(/* webpackChunkName: "settings" */'./components/settings/awsIoT');
 const DataExport = () => import(/* webpackChunkName: "settings" */'./components/settings/dataExport');
 const Notifications = () => import(/* webpackChunkName: "settings" */'./components/settings/notifications');
 const PromoCode = () => import(/* webpackChunkName: "settings" */'./components/settings/promoCode');
@@ -221,6 +222,11 @@ const router = new VueRouter({
               name: 'api',
               path: 'api',
               component: API,
+            },
+            {
+              name: 'awsIoT',
+              path: 'awsIoT',
+              component: AWSIoT,
             },
             {
               name: 'dataExport',

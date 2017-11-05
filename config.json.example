@@ -102,5 +102,8 @@
     "LOGGLY" : {
         "TOKEN" : "example-token",
         "SUBDOMAIN" : "exmaple-subdomain"
-    }
+    },
+    "AWS_IOT_ENDPOINT": "someid.iot.us-west-2.amazonaws.com",
+    "AWS_REGION": "us-west-2",
+    "AWS_ACCOUNT_ID": "175946933286"
 }

@@ -62,6 +62,11 @@ export async function sleep () {
   return response.data.data;
 }
 
+export async function createAWSIoTCertificate () {
+  let response = await axios.get('/api/v3/user/aws-iot-certificate');
+  return response.data.data;
+}
+
 export async function addWebhook (store, payload) {
   let response = await axios.post('/api/v3/user/webhook', payload.webhookInfo);
   return response.data.data;

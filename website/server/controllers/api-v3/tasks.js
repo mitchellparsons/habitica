@@ -23,6 +23,26 @@ import common from '../../../common';
 import Bluebird from 'bluebird';
 import _ from 'lodash';
 import logger from '../../libs/logger';
+import * as AWS from 'aws-sdk';
+import nconf from 'nconf';
+
+const iotdata = new AWS.IotData({
+  endpoint: nconf.get('AWS_IOT_ENDPOINT'),
+  region: nconf.get('AWS_REGION')
+});
+
+function publishToTopic(topic, data) {
+  var params = {
+    topic: topic,
+    payload: JSON.stringify(data),
+    qos: 0
+  };
+  
+  iotdata.publish(params, function(err, data) {
+    if (err) console.log(err, err.stack); // an error occurred
+    else     console.log(data);           // successful response
+  });
+}
 
 const MAX_SCORE_NOTES_LENGTH = 256;
 
@@ -531,6 +551,8 @@ api.scoreTask = {
 
     let task = await Tasks.Task.findByIdOrAlias(taskId, user._id, {userId: user._id});
     let direction = req.params.direction;
+    console.log("/tasks/:taskId/score/:direction", direction, task)
+    console.log("USER: ", user)
 
     if (scoreNotes) task.scoreNotes = scoreNotes;
 
@@ -581,6 +603,8 @@ api.scoreTask = {
     // TODO move to common code?
     if (task.type === 'todo') {
       if (!wasCompleted && task.completed) {
+        publishToTopic(`habitica/user/${task.userId}/task/complete`, {task: task.text})
+
         removeFromArray(user.tasksOrder.todos, task._id);
       } else if (wasCompleted && !task.completed) {
         let hasTask = removeFromArray(user.tasksOrder.todos, task._id);
