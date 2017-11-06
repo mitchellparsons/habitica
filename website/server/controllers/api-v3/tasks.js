@@ -39,8 +39,7 @@ function publishToTopic(topic, data) {
   };
   
   iotdata.publish(params, function(err, data) {
-    if (err) console.log(err, err.stack); // an error occurred
-    else     console.log(data);           // successful response
+    if (err) console.log(err, err.stack);
   });
 }
 
@@ -551,8 +550,6 @@ api.scoreTask = {
 
     let task = await Tasks.Task.findByIdOrAlias(taskId, user._id, {userId: user._id});
     let direction = req.params.direction;
-    console.log("/tasks/:taskId/score/:direction", direction, task)
-    console.log("USER: ", user)
 
     if (scoreNotes) task.scoreNotes = scoreNotes;
 
@@ -603,8 +600,6 @@ api.scoreTask = {
     // TODO move to common code?
     if (task.type === 'todo') {
       if (!wasCompleted && task.completed) {
-        publishToTopic(`habitica/user/${task.userId}/task/complete`, {task: task.text})
-
         removeFromArray(user.tasksOrder.todos, task._id);
       } else if (wasCompleted && !task.completed) {
         let hasTask = removeFromArray(user.tasksOrder.todos, task._id);
@@ -661,6 +656,13 @@ api.scoreTask = {
       }
     }
 
+    publishToTopic(`habitica_user/${user._id}/${task.userId}`, {
+      id: task._id,
+      task: task.text,
+      type: task.type,
+      counterDown: task.counterDown,
+      counterUp: task.counterUp,
+    })
     /*
      * TODO: enable score task analytics if desired
     res.analytics.track('score task', {
