@@ -660,6 +660,7 @@ api.scoreTask = {
       id: task._id,
       task: task.text,
       type: task.type,
+      direction: direction,
       counterDown: task.counterDown,
       counterUp: task.counterUp,
     })
